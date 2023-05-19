@@ -2,7 +2,51 @@
 
 ## On VPS
 1. Install NodeJS
-2. Install Nginx and configure port proxy where the Next app will be served
+2. Install Nginx and configure port proxy where the Next app will be served (also setup certbot)
+```
+# redirect http to https
+server {
+  listen 80 default_server;
+  listen [::]:80 default_server;
+  server_name mydomain.com www.mydomain.com;
+  return 301 https://$server_name$request_uri;
+}
+
+server {
+  # listen on *:443 -> ssl; instead of *:80
+  listen 443 ssl http2 default_server;
+  listen [::]:443 ssl http2 default_server;
+
+  server_name flowy.email;
+
+  ssl_certificate /etc/letsencrypt/live/mydomain.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/mydomain.com/privkey.pem;
+  include snippets/ssl-params.conf;
+
+  location / {
+    # reverse proxy for next server
+    proxy_pass http://localhost:7000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_cache_bypass $http_upgrade;
+
+    # we need to remove this 404 handling
+    # because next's _next folder and own handling
+    # try_files $uri $uri/ =404;
+  }
+
+  location /_next/static {
+     add_header Cache-Control "public, max-age=3600, immutable";
+     proxy_pass http://127.0.0.1:7000/_next/static;
+  }
+
+  location ~ /.well-known {
+    allow all;
+  }
+}
+```
 4. Install Pm2
 
 ## Actions Workflow
